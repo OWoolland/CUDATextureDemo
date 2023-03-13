@@ -7,6 +7,27 @@
 const int num_rows = 4;
 const int num_cols = 4;
 
+// -----------------------------------------------------------------------------
+// Helpers
+
+void defineInput (float* dataIn) {
+  std::cout << "Input" << std::endl;
+  for (int ii = 0; ii < num_rows; ii++) {
+    for (int jj = 0; jj < num_cols; jj++) {
+      int index = (ii*num_cols)+jj;
+      dataIn[index] = (float)index*1.5;
+      std::cout << dataIn[index] << " ";
+    }
+    std::cout << std::endl;
+  }
+  std::cout << std::endl;
+
+  return;
+}
+
+// -----------------------------------------------------------------------------
+// Interpolation kernel
+
 __global__ void kernel(cudaTextureObject_t tex, float xMax, float yMax)
 {
   float offset = 0.5;
@@ -24,6 +45,9 @@ __global__ void kernel(cudaTextureObject_t tex, float xMax, float yMax)
   }
 }
 
+// -----------------------------------------------------------------------------
+// Main
+
 int main(int argc, char **argv)
 {
     cudaDeviceProp prop;
@@ -35,16 +59,7 @@ int main(int argc, char **argv)
     
     cudaTextureObject_t tex;
     float dataIn[num_cols*num_rows*sizeof(float)];
-    std::cout << "Input" << std::endl;
-    for (int ii = 0; ii < num_rows; ii++) {
-      for (int jj = 0; jj < num_cols; jj++) {
-        int index = (ii*num_cols)+jj;
-        dataIn[index] = (float)index*1.5;
-        std::cout << dataIn[index] << " ";
-      }
-      std::cout << std::endl;
-    }
-    std::cout << std::endl;
+    defineInput(dataIn);
     
     float* dataDev = 0;
     size_t pitch;
@@ -77,3 +92,4 @@ int main(int argc, char **argv)
     printf("\n");
     return 0;
 }
+
