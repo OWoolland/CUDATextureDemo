@@ -13,7 +13,6 @@ __global__ void kernel(cudaTextureObject_t tex, float xMax, float yMax)
   float xScale = 1. / xMax;
   float yScale = 1. / xMax;
 
-  printf("No offset \n");
   for (int ii = 0; ii < num_rows; ++ii) {
     for (int jj = 0; jj < num_cols; ++jj) {
       float x = (float)jj;
@@ -23,46 +22,7 @@ __global__ void kernel(cudaTextureObject_t tex, float xMax, float yMax)
     }
     printf("\n");
   }
-  printf("\n");
-  
-  printf("X offset (half bin)\n");
-  for (int ii = 0; ii < num_rows; ++ii) {
-    for (int jj = 0; jj < num_cols; ++jj) {
-      float x = (float)jj+0.5;
-      float y = (float)ii;
-      float val = tex2D<float>(tex, (x+offset)*xScale, (y+offset)*yScale);
-      printf("%.2f, ", val);
-    }
-    printf("\n");
-  }
-  printf("\n");
-
-  printf("Y offset (half bin)\n");
-  for (int ii = 0; ii < num_rows; ++ii) {
-    for (int jj = 0; jj < num_cols; ++jj) {
-      float x = (float)jj;
-      float y = (float)ii+0.5;
-      float val = tex2D<float>(tex, (x+offset)*xScale, (y+offset)*yScale);
-      printf("%.2f, ", val);
-    }
-    printf("\n");
-  }
-  printf("\n");
-
-  printf("X and Y offset (half bin)\n");
-  for (int ii = 0; ii < num_rows; ++ii) {
-    for (int jj = 0; jj < num_cols; ++jj) {
-      float x = (float)jj+0.5;
-      float y = (float)ii+0.5;
-      float val = tex2D<float>(tex, (x+offset)*xScale, (y+offset)*yScale);
-      printf("%.2f, ", val);
-    }
-    printf("\n");
-  }
-  printf("\n");
 }
-
-//const int num_cols = prop.texturePitchAlignment*1; // should be able to use a different multiplier here
 
 int main(int argc, char **argv)
 {
