@@ -50,28 +50,35 @@ __global__ void kernel(cudaTextureObject_t tex, float xMax, float yMax)
 
 int main(int argc, char **argv)
 {
-  float xMax = num_cols;
-  float yMax = num_rows;
-    
-  cudaTextureObject_t tex;
+  // ---------------------------------------------------------------------------
+  // Get input data
+  
   float dataIn[num_cols*num_rows*sizeof(float)];
   defineInput(dataIn);
+
+  // ---------------------------------------------------------------------------
+  // Allocate pitched (2D) memory
     
-  float* dataDev = 0;
+  float* ptr_d = 0;
   size_t pitch;
-    
-  cudaMallocPitch((void**)&dataDev, &pitch,  num_cols*sizeof(float), num_rows);
-  cudaMemcpy2D(dataDev, pitch, dataIn, num_cols*sizeof(float), num_cols*sizeof(float), num_rows, cudaMemcpyHostToDevice);
+  cudaMallocPitch((void**)&ptr_d, &pitch,  num_cols*sizeof(float), num_rows);
+  cudaMemcpy2D(ptr_d, pitch, dataIn, num_cols*sizeof(float), num_cols*sizeof(float), num_rows, cudaMemcpyHostToDevice);
+
+  // ---------------------------------------------------------------------------
+  // Initialise pitched memory
     
   struct cudaResourceDesc resDesc;
   memset(&resDesc, 0, sizeof(resDesc));
     
   resDesc.resType = cudaResourceTypePitch2D;
-  resDesc.res.pitch2D.devPtr = dataDev;
+  resDesc.res.pitch2D.devPtr = ptr_d;
   resDesc.res.pitch2D.width = num_cols;
   resDesc.res.pitch2D.height = num_rows;
   resDesc.res.pitch2D.desc = cudaCreateChannelDesc<float>();
   resDesc.res.pitch2D.pitchInBytes = pitch;
+
+  // ---------------------------------------------------------------------------
+  // Configure interpolation parameters
     
   struct cudaTextureDesc texDesc;
   memset(&texDesc, 0, sizeof(texDesc));
@@ -81,11 +88,25 @@ int main(int argc, char **argv)
   texDesc.readMode         = cudaReadModeElementType;
   texDesc.normalizedCoords = true;
 
+  // ---------------------------------------------------------------------------
+  // Create texture
+
+  cudaTextureObject_t tex;
   cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
+
+  // ---------------------------------------------------------------------------
+  // Fetch interpolated parameters
+
+  float xMax = num_cols;
+  float yMax = num_rows;
+
   dim3 threads(1, 1);
   kernel<<<1, threads>>>(tex, xMax, yMax);
+
+  // ---------------------------------------------------------------------------
+  // Await completion and exit
+
   cudaDeviceSynchronize();
-  printf("\n");
   return 0;
 }
 
