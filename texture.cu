@@ -50,46 +50,42 @@ __global__ void kernel(cudaTextureObject_t tex, float xMax, float yMax)
 
 int main(int argc, char **argv)
 {
-    cudaDeviceProp prop;
-    cudaGetDeviceProperties(&prop, 0);
-    printf("texturePitchAlignment: %lu\n", prop.texturePitchAlignment);
+  float xMax = num_cols;
+  float yMax = num_rows;
+    
+  cudaTextureObject_t tex;
+  float dataIn[num_cols*num_rows*sizeof(float)];
+  defineInput(dataIn);
+    
+  float* dataDev = 0;
+  size_t pitch;
+    
+  cudaMallocPitch((void**)&dataDev, &pitch,  num_cols*sizeof(float), num_rows);
+  cudaMemcpy2D(dataDev, pitch, dataIn, num_cols*sizeof(float), num_cols*sizeof(float), num_rows, cudaMemcpyHostToDevice);
+    
+  struct cudaResourceDesc resDesc;
+  memset(&resDesc, 0, sizeof(resDesc));
+    
+  resDesc.resType = cudaResourceTypePitch2D;
+  resDesc.res.pitch2D.devPtr = dataDev;
+  resDesc.res.pitch2D.width = num_cols;
+  resDesc.res.pitch2D.height = num_rows;
+  resDesc.res.pitch2D.desc = cudaCreateChannelDesc<float>();
+  resDesc.res.pitch2D.pitchInBytes = pitch;
+    
+  struct cudaTextureDesc texDesc;
+  memset(&texDesc, 0, sizeof(texDesc));
+  texDesc.addressMode[0]   = cudaAddressModeClamp;
+  texDesc.addressMode[1]   = cudaAddressModeClamp;
+  texDesc.filterMode       = cudaFilterModeLinear;
+  texDesc.readMode         = cudaReadModeElementType;
+  texDesc.normalizedCoords = true;
 
-    float xMax = num_cols;
-    float yMax = num_rows;
-    
-    cudaTextureObject_t tex;
-    float dataIn[num_cols*num_rows*sizeof(float)];
-    defineInput(dataIn);
-    
-    float* dataDev = 0;
-    size_t pitch;
-    
-    cudaMallocPitch((void**)&dataDev, &pitch,  num_cols*sizeof(float), num_rows);
-    cudaMemcpy2D(dataDev, pitch, dataIn, num_cols*sizeof(float), num_cols*sizeof(float), num_rows, cudaMemcpyHostToDevice);
-    
-    struct cudaResourceDesc resDesc;
-    memset(&resDesc, 0, sizeof(resDesc));
-    
-    resDesc.resType = cudaResourceTypePitch2D;
-    resDesc.res.pitch2D.devPtr = dataDev;
-    resDesc.res.pitch2D.width = num_cols;
-    resDesc.res.pitch2D.height = num_rows;
-    resDesc.res.pitch2D.desc = cudaCreateChannelDesc<float>();
-    resDesc.res.pitch2D.pitchInBytes = pitch;
-    
-    struct cudaTextureDesc texDesc;
-    memset(&texDesc, 0, sizeof(texDesc));
-    texDesc.addressMode[0]   = cudaAddressModeClamp;
-    texDesc.addressMode[1]   = cudaAddressModeClamp;
-    texDesc.filterMode       = cudaFilterModeLinear;
-    texDesc.readMode         = cudaReadModeElementType;
-    texDesc.normalizedCoords = true;
-
-    cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
-    dim3 threads(1, 1);
-    kernel<<<1, threads>>>(tex, xMax, yMax);
-    cudaDeviceSynchronize();
-    printf("\n");
-    return 0;
+  cudaCreateTextureObject(&tex, &resDesc, &texDesc, NULL);
+  dim3 threads(1, 1);
+  kernel<<<1, threads>>>(tex, xMax, yMax);
+  cudaDeviceSynchronize();
+  printf("\n");
+  return 0;
 }
 
