@@ -4,13 +4,10 @@
 
 //typedef uint8_t float;  // use an integer type
 
-const int num_rows = 4;
-const int num_cols = 4;
-
 // -----------------------------------------------------------------------------
 // Helpers
 
-void defineInput (float* dataIn) {
+void defineInput (float* dataIn, int num_rows, int num_cols) {
   std::cout << "Input" << std::endl;
   for (int ii = 0; ii < num_rows; ii++) {
     for (int jj = 0; jj < num_cols; jj++) {
@@ -25,15 +22,73 @@ void defineInput (float* dataIn) {
   return;
 }
 
+void allocate2DMemory (float*& ptr_d,
+                       size_t& pitch,
+                       int num_rows,
+                       int num_cols,
+                       void* dataIn
+                       ) {
+
+  cudaMallocPitch((void**)&ptr_d,
+                  &pitch,
+                  num_cols*sizeof(float),
+                  num_rows);
+  
+  cudaMemcpy2D(ptr_d,
+               pitch,
+               dataIn,
+               num_cols*sizeof(float),
+               num_cols*sizeof(float),
+               num_rows,
+               cudaMemcpyHostToDevice);
+
+  return;
+}
+
+void configureResourceDescription (struct cudaResourceDesc& resDesc,
+                                   float* ptr_d,
+                                   size_t& pitch,
+                                   int num_rows,
+                                   int num_cols
+                                   ) {
+  memset(&resDesc, 0, sizeof(resDesc));
+    
+  resDesc.resType = cudaResourceTypePitch2D;
+  resDesc.res.pitch2D.devPtr = ptr_d;
+  resDesc.res.pitch2D.width = num_cols;
+  resDesc.res.pitch2D.height = num_rows;
+  resDesc.res.pitch2D.desc = cudaCreateChannelDesc<float>();
+  resDesc.res.pitch2D.pitchInBytes = pitch;
+
+  return;
+}
+
+void configureTexture (struct cudaTextureDesc& texDesc) {
+  memset(&texDesc, 0, sizeof(texDesc));
+  texDesc.addressMode[0]   = cudaAddressModeClamp;
+  texDesc.addressMode[1]   = cudaAddressModeClamp;
+  texDesc.filterMode       = cudaFilterModeLinear;
+  texDesc.readMode         = cudaReadModeElementType;
+  texDesc.normalizedCoords = true;
+
+  return;
+} 
+
 // -----------------------------------------------------------------------------
 // Interpolation kernel
 
-__global__ void kernel(cudaTextureObject_t tex, float xMax, float yMax)
+__global__ void kernel (cudaTextureObject_t tex,
+                        float xMax,
+                        float yMax,
+                        int num_rows,
+                        int num_cols
+                        )
 {
   float offset = 0.5;
   float xScale = 1. / xMax;
   float yScale = 1. / xMax;
 
+  printf("Output\n");
   for (int ii = 0; ii < num_rows; ++ii) {
     for (int jj = 0; jj < num_cols; ++jj) {
       float x = (float)jj;
@@ -50,43 +105,33 @@ __global__ void kernel(cudaTextureObject_t tex, float xMax, float yMax)
 
 int main(int argc, char **argv)
 {
+  const int num_rows = 4;
+  const int num_cols = 4;
+
   // ---------------------------------------------------------------------------
   // Get input data
   
   float dataIn[num_cols*num_rows*sizeof(float)];
-  defineInput(dataIn);
+  defineInput(dataIn, num_rows, num_cols);
 
   // ---------------------------------------------------------------------------
   // Allocate pitched (2D) memory
     
   float* ptr_d = 0;
-  size_t pitch;
-  cudaMallocPitch((void**)&ptr_d, &pitch,  num_cols*sizeof(float), num_rows);
-  cudaMemcpy2D(ptr_d, pitch, dataIn, num_cols*sizeof(float), num_cols*sizeof(float), num_rows, cudaMemcpyHostToDevice);
+  size_t pitch = 0;
+  allocate2DMemory(ptr_d, pitch, num_rows, num_cols, dataIn);
 
   // ---------------------------------------------------------------------------
   // Initialise pitched memory
     
   struct cudaResourceDesc resDesc;
-  memset(&resDesc, 0, sizeof(resDesc));
-    
-  resDesc.resType = cudaResourceTypePitch2D;
-  resDesc.res.pitch2D.devPtr = ptr_d;
-  resDesc.res.pitch2D.width = num_cols;
-  resDesc.res.pitch2D.height = num_rows;
-  resDesc.res.pitch2D.desc = cudaCreateChannelDesc<float>();
-  resDesc.res.pitch2D.pitchInBytes = pitch;
+  configureResourceDescription(resDesc, ptr_d, pitch, num_rows, num_cols);
 
   // ---------------------------------------------------------------------------
   // Configure interpolation parameters
     
   struct cudaTextureDesc texDesc;
-  memset(&texDesc, 0, sizeof(texDesc));
-  texDesc.addressMode[0]   = cudaAddressModeClamp;
-  texDesc.addressMode[1]   = cudaAddressModeClamp;
-  texDesc.filterMode       = cudaFilterModeLinear;
-  texDesc.readMode         = cudaReadModeElementType;
-  texDesc.normalizedCoords = true;
+  configureTexture(texDesc);
 
   // ---------------------------------------------------------------------------
   // Create texture
@@ -101,7 +146,7 @@ int main(int argc, char **argv)
   float yMax = num_rows;
 
   dim3 threads(1, 1);
-  kernel<<<1, threads>>>(tex, xMax, yMax);
+  kernel<<<1, threads>>>(tex, xMax, yMax, num_rows, num_cols);
 
   // ---------------------------------------------------------------------------
   // Await completion and exit
